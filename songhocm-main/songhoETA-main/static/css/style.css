@@ -1,0 +1,61 @@
+body {
+  background-image: url('../images/programsim.png');  
+  background-size: cover;
+  background-repeat: no-repeat; 
+  background-attachment: fixed;
+}
+
+.container {
+  width: 400px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: rgb(255, 255, 255);
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  margin-top: 100px;
+}
+
+.input-wrapper {
+  margin-bottom: 15px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.password-toggle {
+  cursor: pointer;
+  font-size: 0.9em;
+  color: #007BFF;
+}
+
+.password-wrapper {
+  position: relative;
+}
+
+.password-wrapper input {
+  padding-right: 60px;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  user-select: none;
+}
+  
+.container.board {
+  width: 700px;
+  max-width: 90%;
+  margin-top: 50px;
+}

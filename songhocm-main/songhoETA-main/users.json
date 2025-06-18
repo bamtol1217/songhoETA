@@ -1,0 +1,18 @@
+{
+  "admin": {
+    "pw_hash": "scrypt:32768:8:1$cZeYR4z2NhKFxeaK$c98d47d286ed17f6a3ddad65fa38720ed6ef1c6203d4bd6ae9042603c73230de929f70b641683a2d300b6dc25d10c8f9b6999dc27919414b0c19a532b1ff9a3b",
+    "role": "admin"
+  },
+  "30716이성진": {
+    "pw_hash": "scrypt:32768:8:1$zjoFdqhcNpNHFAIq$8800aeea7cce14d0614f1478c561cd53e9749afdb969950bb8b9f18dad3807703218c275fff15e7a7f7932de916b8960b82c01e2532e949c15a7a8281b0c1cd5",
+    "role": "user"
+  },
+  "10101홍길동": {
+    "pw_hash": "scrypt:32768:8:1$4p7v65V0WnetD3PP$e9b5dbc5d717a1508d8f30a8175132342d5cc4fa8d12bedecc49a92801a757fc818477c2844167475ead7b1fe3b22b7c6c557fcd365e06e944bb0f796e75288f",
+    "role": "user"
+  },
+  "20202김승리": {
+    "pw_hash": "scrypt:32768:8:1$2Wh0Uc6IG9V2rpIH$8070c8cf0bea99c7b6d9aef0b247d36457d8f937e337a4437a0efeebf1e8b655a3d22b1d13cfbd2e9b28302182bcecee3e507bb2b5c9477360e4522a3656c9f7",
+    "role": "user"
+  }
+}

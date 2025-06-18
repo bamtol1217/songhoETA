@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>송호 ETA</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <style>
+    body {
+      background-image: url("{{ url_for('static', filename='images/programsim.png') }}");
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+    }
+
+    input:focus::placeholder, textarea:focus::placeholder {
+      color: transparent;
+    }
+    #posts li {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    #post-form-container input, #post-form-container textarea {
+      width: 200%;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-size: 1em;
+    }
+    .comment {
+      border-top: 1px solid #ccc;
+      padding: 5px 0;
+    }
+    .comment strong {
+      font-size: 0.9em;
+    }
+    .comment-list {
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 로그인 -->
+<div class="container" id="login-container">
+  <h2>송호 ETA 로그인</h2>
+  <input type="text" id="login-id" placeholder="ID" />
+  <input type="password" id="login-pw" placeholder="Password" />
+  <button onclick="login()">로그인</button>
+  <button onclick="showSignup()">회원가입</button>
+</div>
+
+<!-- 회원가입 -->
+<div class="container" id="signup-container" style="display:none;">
+  <h2>회원가입</h2>
+  <input type="text" id="signup-id" placeholder="ID (학번+이름)" />
+  <input type="password" id="signup-pw" placeholder="Password" />
+  <input type="password" id="signup-pw-confirm" placeholder="Password 확인" />
+  <input type="text" id="signup-security-code" placeholder="보안코드 입력" />
+  <button onclick="checkDuplicate()">중복 확인</button>
+  <button onclick="register()">가입하기</button>
+  <button onclick="showLogin()">뒤로가기</button>
+</div>
+
+<!-- 자유게시판 -->
+<div class="container" id="main-container" style="display:none; position:relative;">
+  <div style="position: absolute; top: -60px; right: 40px;">
+    <span id="welcome-message" style="font-weight:bold;"></span>
+    <button onclick="logout()">로그아웃</button>
+  </div>
+
+  <h2>📋 자유게시판</h2>
+  <ul id="posts" style="margin-top: 20px;"></ul>
+  <div style="text-align:right;">
+    <button onclick="showPostForm()">글쓰기</button>
+  </div>
+</div>
+
+<!-- 글쓰기 폼 -->
+<div class="container" id="post-form-container" style="display:none;">
+  <h2>✍️ 글쓰기</h2>
+  <input type="text" id="post-title" placeholder="제목을 입력하시오" />
+  <textarea id="post-content" rows="8" placeholder="글 내용을 입력하시오."></textarea>
+  <div style="text-align:right;">
+    <button onclick="submitPost()">올리기</button>
+    <button onclick="cancelPost()">취소</button>
+  </div>
+</div>
+
+<!-- 관리자 -->
+<div class="container" id="admin-container" style="display:none;">
+  <h2>관리자 페이지</h2>
+  <div id="user-list"></div>
+  <button onclick="logout()">로그아웃</button>
+</div>
+
+<script>
+  let posts = [];
+  let comments = {};
+  let currentUser = null;
+  let editingPostIndex = null;
+
+  function showOnly(id) {
+    ['login-container', 'signup-container', 'main-container', 'post-form-container', 'admin-container'].forEach(eid => {
+      const el = document.getElementById(eid);
+      if (el) el.style.display = 'none';
+    });
+    const target = document.getElementById(id);
+    if (target) target.style.display = 'block';
+  }
+
+  function showLogin() {
+    clearInputs();
+    currentUser = null;
+    showOnly('login-container');
+  }
+
+  function showSignup() {
+    clearInputs();
+    showOnly('signup-container');
+  }
+
+  function renderPostList() {
+    const container = document.getElementById('main-container');
+    container.innerHTML = `
+      <div style="position: absolute; top: -60px; right: 40px;">
+        <span id="welcome-message" style="font-weight:bold;">${currentUser.id}님 환영합니다!</span>
+        <button onclick="logout()">로그아웃</button>
+      </div>
+      <h2>📋 자유게시판</h2>
+      <ul id="posts" style="margin-top: 20px;"></ul>
+      <div style="text-align:right;"> 
+        <button onclick="showPostForm()">글쓰기</button>
+      </div>
+    `;
+
+    const ul = document.getElementById('posts');
+    ul.innerHTML = '';  // 💡 리스트 초기화
+    posts.forEach((post, index) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span style="cursor:pointer;" onclick="showPostDetail(${index})">
+          <strong>${post.title}</strong>
+        </span> - ${post.author}
+        ${(currentUser && (currentUser.role === 'admin' || post.author === currentUser.id)) ? `
+          <button onclick="editPost(${index})">수정</button>
+          <button onclick="deletePost(${index})">삭제</button>
+        ` : ''}
+      `;
+      ul.appendChild(li);
+    });
+  }
+
+
+  async function showPostDetail(index) {
+    console.log("선택한 post:", posts[index]);
+    const post = posts[index];
+    if (!post || !post.id) {
+      console.error("post 또는 post.id가 없습니다:", post);
+      alert("이 글은 열 수 없습니다.");
+      return;
+    }
+
+    const container = document.getElementById('main-container');
+
+    try {
+      const res = await fetch('/api/get_comments?post_id=' + post.id);
+      const data = await res.json();
+      const postComments = data.success ? data.comments : [];
+
+      let commentHtml = `
+        <div style="margin-top:20px;">
+          <textarea id="comment-input" rows="2" placeholder="댓글을 작성해주세요"></textarea>
+          <button onclick="addComment(${index})">올리기</button>
+        </div>
+        <div class="comment-list">
+          ${postComments.map((c, i) => `
+            <div class="comment">
+              <strong>${c.author}:</strong> ${c.text}
+              ${(currentUser && currentUser.role === 'admin') ? `
+                <button onclick="deleteComment('${post.id}', ${i})">삭제</button>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+        <br><button onclick="renderPostList()">목록으로</button>
+      `;
+      container.innerHTML = `
+        <h2>📝 ${post.title}</h2>
+        <p style="white-space:pre-line;">${post.content}</p>
+        ${commentHtml}
+      `;
+    } catch (err) {
+      console.error('댓글 불러오기 실패:', err);
+      alert('댓글을 불러오지 못했습니다.');
+    }
+  }
+
+
+  async function addComment(index) {
+    const input = document.getElementById('comment-input');
+    const text = input.value.trim();
+    if (!text) return alert('댓글을 입력해주세요.');
+
+    const postId = posts[index].id;
+    const res = await fetch('/api/add_comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_id: postId,
+        author: currentUser.id,
+        text: text
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      input.value = '';
+      await showPostDetail(index);  // 댓글 다시 로딩
+    } else {
+      alert('댓글 등록 실패: ' + (data.message || ''));
+    }
+  }
+
+
+
+  function clearInputs() {
+    document.querySelectorAll('input, textarea').forEach(el => el.value = '');
+  }
+
+  function showPostForm() {
+    clearInputs();
+    editingPostIndex = null;
+    showOnly('post-form-container');
+  }
+
+  async function submitPost() {
+    const title = document.getElementById('post-title').value.trim();
+    const content = document.getElementById('post-content').value.trim();
+    if (!title || !content) return alert('제목과 내용을 입력해주세요.');
+
+    const res = await fetch('/api/add_post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content, author: currentUser.id })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert('글이 저장되었습니다.');
+      await loadPosts();
+      showOnly('main-container');
+    } else {
+      alert('글 저장 실패: ' + (data.message || ''));
+    }
+  }
+
+  async function deleteComment(postId, index) {
+    if (!confirm('정말 이 댓글을 삭제하시겠습니까?')) return;
+
+    const res = await fetch('/api/delete_comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        post_id: postId,
+        index: index,
+        user_id: currentUser.id
+      })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert('댓글이 삭제되었습니다.');
+      const postIndex = posts.findIndex(p => p.id === postId);
+      if (postIndex !== -1) await showPostDetail(postIndex); // 댓글 새로고침
+    } else {
+      alert('댓글 삭제 실패: ' + (data.message || ''));
+    }
+  }
+
+  function cancelPost() {
+    editingPostIndex = null;
+    showOnly('main-container');
+  }
+
+  function editPost(index) {
+    const post = posts[index];
+    if (post.author !== currentUser.id) {
+      alert('자신의 글만 수정할 수 있습니다.');
+      return;
+    }
+    document.getElementById('post-title').value = post.title;
+    document.getElementById('post-content').value = post.content;
+    editingPostIndex = index;
+    showOnly('post-form-container');
+  }
+
+  async function deletePost(index) {
+    const post = posts[index];
+    if (post.author !== currentUser.id && currentUser.role !== 'admin') {
+      alert('자신의 글만 삭제할 수 있습니다.');
+      return;
+    }
+    if (!confirm('정말 삭제하시겠습니까?')) return;
+
+    const res = await fetch('/api/delete_post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ post_id: post.id, user_id: currentUser.id })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      alert('삭제되었습니다.');
+      await loadPosts();
+    } else {
+      alert('삭제 실패: ' + data.message);
+    }
+  }
+
+  async function login() {
+    const id = document.getElementById('login-id').value.trim();
+    const pw = document.getElementById('login-pw').value;
+    if (!id || !pw) return alert('ID와 비밀번호를 입력해주세요.');
+
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, password: pw })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      currentUser = { id: id, role: data.role };
+      document.getElementById('welcome-message').innerText = `${currentUser.id}님 환영합니다!`;
+
+      await loadPosts();
+      showOnly('main-container');
+
+      if (currentUser.role === 'admin') {
+        document.getElementById('admin-container').style.display = 'block';
+        await renderAdmin(id);
+      }
+    } else {
+      alert(data.message || '로그인 실패');
+    }
+  }
+
+  async function renderAdmin(adminId) {
+    const res = await fetch('/api/get_users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: adminId })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      const container = document.getElementById('user-list');
+      container.innerHTML = '';
+      data.users.forEach(user => {
+        const div = document.createElement('div');
+        div.textContent = user.id + ' ';
+        const btn = document.createElement('button');
+        btn.textContent = '삭제';
+        btn.onclick = () => deleteUser(user.id, adminId);
+        div.appendChild(btn);
+        container.appendChild(div);
+      });
+
+      document.getElementById('admin-container').style.display = 'block';
+    } else {
+      alert(data.message);
+    }
+  }
+
+  function logout() {
+    currentUser = null;
+    showLogin();
+  }
+
+  async function loadPosts() {
+    const res = await fetch('/api/get_posts');
+    const data = await res.json();
+    if (data.success) {
+      posts = Object.entries(data.posts).map(([id, post]) => ({
+        ...post,
+        id
+      }));
+      renderPostList();
+    }
+  }
+</script>
+</body>
+</html>
+
